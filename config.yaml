@@ -1,0 +1,66 @@
+# ============================================================
+# إعدادات فريق اختبار الاختراق الآلي (Pentest Agent Team)
+#
+# ⚠️ عدّل scope.targets فقط ضمن النطاق الموقّع عليه من العميل.
+# ⚠️ لا يوجد في هذه الأداة أي خيار لتعطيل التحقق من النطاق (Scope Guard)
+#    بالكامل — هذا مقصود، للحفاظ على الغطاء القانوني لعمل الفريق.
+#    لإضافة هدف جديد لجلسة التشغيل، استخدم بدلًا من ذلك:
+#        python main.py --add-target "https://new-target.example.com"
+#    فقط بعد الحصول على تفويض موثّق (نطاق موقّع) من العميل لهذا الهدف.
+# ============================================================
+
+scope:
+  targets:                       # ضع هنا نطاق العميل الموقّع فقط
+    - "https://staging.example.com"
+  allowed_ports: [80, 443, 8080, 8443]
+  max_threads: 20
+  rate_limit: "50/s"             # لا تُثقّل على خادم العميل
+
+llm:
+  provider: "ollama"             # "ollama" (محلي، يبقي بيانات العميل عندك) أو "gemini" (سحابي)
+  ollama_url: "http://localhost:11434"
+  model: "qwen2.5:14b"           # ⚠️ يحتاج تقريبًا 9-10 جيجا رام فعليًا بصيغة Q4 — لن يعمل
+                                  #    على جهاز محلي بـ3 جيجا رام. للتشغيل محليًا على جهاز كهذا
+                                  #    جرّب "qwen2.5:3b" أو "qwen2.5:1.5b"، أو بدّل provider إلى gemini.
+                                  #    على Oracle Cloud Free Tier (حتى 24 جيجا رام) يعمل qwen2.5:14b دون مشاكل.
+  gemini_model: "gemini-2.0-flash"
+  temperature: 0.2
+  # مفاتيح الـ API تُقرأ من .env (راجع .env.example) وليس من هنا
+
+stages:
+  recon:   true
+  scan:    true
+  exploit: true                  # نفس اسم المرحلة في الملف الأصلي — راجع قسم exploit أدناه
+  report:  true
+
+recon:
+  tools: ["nmap", "httpx", "katana"]
+  whois: true
+  dns: true
+
+scan:
+  tools: ["nuclei", "zap", "sqlmap"]
+  zap:
+    base_url: "http://zap:8080"
+    spider_timeout_sec: 120
+    ascan_timeout_sec: 900
+  sqlmap:
+    level: 1                     # 1-5 — أبقِه منخفضًا في فحص تلقائي غير مراقَب
+    risk: 1                      # 1-3
+
+exploit:
+  mode: "check"                  # "check" = تحقق آمن من قابلية الاستغلال فقط (الافتراضي)
+                                  # "full"  = استغلال فعلي — يتطلب أيضًا تمرير --confirm-exploit
+                                  #           في سطر الأوامر، ولا يُفعَّل من config.yaml وحده أبدًا
+  destructive: false             # يبقى false دائمًا، حتى في وضع full — بدون حذف/تشفير بيانات العميل
+  use_metasploit: true
+  msf:
+    host: "127.0.0.1"            # عنوان msfrpcd (عادة نفس مضيف Kali)
+    port: 55553
+    ssl: true
+    # كلمة المرور تُقرأ من متغير البيئة MSF_RPC_PASSWORD
+
+report:
+  format: "cvss"                 # يبقي تنسيق CVSS كما كان مقرّرًا
+  output_dir: "reports"
+  also_markdown: true

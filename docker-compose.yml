@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    # ⚠️ تحسين أمني عن النسخة الأصلية: تفعيل مفتاح API بدل فتح الواجهة لأي عنوان
+    command: >
+      zap.sh -daemon -host 0.0.0.0 -port 8080
+      -config api.disablekey=false
+      -config api.key=${ZAP_API_KEY}
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: ["ollama:/root/.ollama"]
+    # في HF Spaces استخدم ollama/ollama:rocm، أو احذف هذه الخدمة واستخدم gemini
+    # في config.yaml (llm.provider: gemini) إن لم تتوفر موارد كافية محليًا
+
+  team:
+    build: .
+    depends_on:
+      zap:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    volumes:
+      - .:/app
+      - ./output:/app/output
+      - ./reports:/app/reports
+    env_file: .env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    # ملاحظة: msfrpcd (Metasploit) يُشغَّل على مضيف Kali خارج Docker، وليس
+    # كخدمة هنا — راجع README.md لشرح السبب وطريقة الربط.
+
+volumes:
+  ollama:
